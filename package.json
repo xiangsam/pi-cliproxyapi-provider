@@ -1,5 +1,5 @@
 {
-  "name": "pi-cliproxyapi-provider",
+  "name": "@samrito/pi-cliproxyapi-provider",
   "version": "0.15.30",
   "description": "Pi provider package for CLIProxyAPI with automatic model discovery and models.dev enrichment.",
   "type": "module",
@@ -15,12 +15,15 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/0xRichardH/pi-cliproxyapi-provider.git"
+    "url": "git+https://github.com/xiangsam/pi-cliproxyapi-provider.git"
   },
   "bugs": {
-    "url": "https://github.com/0xRichardH/pi-cliproxyapi-provider/issues"
+    "url": "https://github.com/xiangsam/pi-cliproxyapi-provider/issues"
   },
-  "homepage": "https://github.com/0xRichardH/pi-cliproxyapi-provider#readme",
+  "homepage": "https://github.com/xiangsam/pi-cliproxyapi-provider#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "src",
     "extensions",

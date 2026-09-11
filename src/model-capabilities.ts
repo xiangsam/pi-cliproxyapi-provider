@@ -15,9 +15,20 @@ interface ModelCapabilityRule {
   overrides: ModelCapabilityOverrides;
 }
 
+/**
+ * Fallback level map for the GPT-5.6 family, used only when models.dev publishes
+ * no effort list for the model.
+ *
+ * `minimal` is explicitly unsupported. Measured against a live CLIProxyAPI
+ * instance, gpt-5.6-sol, -terra, and -luna all answer
+ * `400 level "minimal" not supported, valid levels: low, medium, high, xhigh, max`,
+ * so offering it produces a failing request. models.dev omits `minimal` for the
+ * same models, which is why this rule is the fallback rather than the source of
+ * truth; it stays correct by hiding what the model does not accept.
+ */
 const GPT_5_6_THINKING_LEVEL_MAP: ThinkingLevelMap = {
   off: "none",
-  minimal: "minimal",
+  minimal: null,
   low: "low",
   medium: "medium",
   high: "high",

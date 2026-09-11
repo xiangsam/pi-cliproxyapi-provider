@@ -63,10 +63,13 @@ test("does not share mutable default objects between fallback models", () => {
   assert.equal(result.models[1].cost.input, 0);
 });
 
-test("adds the full thinking map to every GPT-5.6 model family member", () => {
+test("adds the thinking map to every GPT-5.6 model family member", () => {
+  // `minimal` is hidden rather than mapped: the proxy rejects that level for
+  // every measured GPT-5.6 model, and these IDs carry no models.dev metadata to
+  // override the rule with.
   const expectedThinkingLevelMap = {
     off: "none",
-    minimal: "minimal",
+    minimal: null,
     low: "low",
     medium: "medium",
     high: "high",
@@ -204,4 +207,169 @@ test("applies bounded user overrides without changing forced model API selection
   assert.equal(result.models[0].maxTokens, 32768);
   assert.equal(result.models[0].api, "openai-responses");
   assert.equal(result.models[0].thinkingLevelMap?.max, "max");
+});
+
+test("derives thinking levels from models.dev reasoning_options", () => {
+  const result = buildProviderModels(
+    [{ id: "deepseek-flash", object: "model", owned_by: "deepseek" }],
+    {
+      "deepseek/deepseek-flash": {
+        id: "deepseek/deepseek-flash",
+        name: "DeepSeek Flash",
+        reasoning: true,
+        reasoning_options: [{ type: "effort", values: ["low", "high", "max"] }],
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 1000000, output: 384000 },
+        cost: { input: 0.15, output: 0.6, cache_read: 0.003 },
+      },
+    },
+    {},
+  );
+
+  const model = result.models[0];
+  assert.equal(model.reasoning, true);
+  // pi offers exactly the published levels, including the extended `max` that it
+  // hides unless the map names it.
+  assert.deepEqual(model.thinkingLevelMap, {
+    off: null,
+    minimal: null,
+    low: "low",
+    medium: null,
+    high: "high",
+    xhigh: null,
+    max: "max",
+  });
+});
+
+test("lets models.dev levels replace a stale hardcoded capability rule", () => {
+  // Regression: a live CLIProxyAPI instance rejects `minimal` for gpt-5.6 with
+  // `400 level "minimal" not supported`, while the built-in rule still maps it.
+  // models.dev omits `minimal` for this model and matches the proxy, so its list
+  // must win or pi sends a request the proxy refuses.
+  const result = buildProviderModels(
+    [{ id: "gpt-5.6-sol", object: "model", owned_by: "openai" }],
+    {
+      "openai/gpt-5.6-sol": {
+        id: "openai/gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
+        reasoning: true,
+        reasoning_options: [{ type: "effort", values: ["none", "low", "medium", "high", "xhigh", "max"] }],
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 1050000, output: 128000 },
+        cost: { input: 4, output: 20 },
+      },
+    },
+    {},
+  );
+
+  const map = result.models[0].thinkingLevelMap;
+  assert.equal(map?.minimal, null, "minimal must be hidden, not offered");
+  assert.equal(map?.off, "none");
+  assert.equal(map?.xhigh, "xhigh");
+  assert.equal(map?.max, "max");
+});
+
+test("keeps the hardcoded rule as a fallback when metadata has no level list", () => {
+  const result = buildProviderModels(
+    [{ id: "gpt-5.6-sol", object: "model", owned_by: "openai" }],
+    {
+      "openai/gpt-5.6-sol": {
+        id: "openai/gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
+        reasoning: true,
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 1050000, output: 128000 },
+        cost: { input: 4, output: 20 },
+      },
+    },
+    {},
+  );
+
+  // The rule still describes the family when models.dev publishes nothing, but
+  // it hides `minimal`: the proxy rejects that level for every measured GPT-5.6
+  // model, so offering it here would fail requests whenever metadata is missing.
+  assert.equal(result.models[0].thinkingLevelMap?.minimal, null);
+  assert.equal(result.models[0].thinkingLevelMap?.off, "none");
+  assert.equal(result.models[0].thinkingLevelMap?.max, "max");
+});
+
+test("omits the level map when metadata publishes no level list", () => {
+  const result = buildProviderModels(
+    [{ id: "claude-opus-4-6", object: "model", owned_by: "anthropic" }],
+    {
+      "anthropic/claude-opus-4-6": {
+        id: "anthropic/claude-opus-4-6",
+        name: "Claude Opus 4.6",
+        reasoning: true,
+        reasoning_options: [{ type: "budget_tokens", min: 1024 }],
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 1000000, output: 128000 },
+        cost: { input: 5, output: 25 },
+      },
+    },
+    {},
+  );
+
+  assert.equal(result.models[0].thinkingLevelMap, undefined);
+});
+
+test("preserves models.dev cost so pi can price usage", () => {
+  const result = buildProviderModels(
+    [{ id: "deepseek-flash", object: "model", owned_by: "deepseek" }],
+    {
+      "deepseek/deepseek-flash": {
+        id: "deepseek/deepseek-flash",
+        name: "DeepSeek Flash",
+        reasoning: true,
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 1000000, output: 384000 },
+        cost: { input: 0.15, output: 0.6, cache_read: 0.003, cache_write: 0.1 },
+      },
+    },
+    {},
+  );
+
+  // models.dev quotes USD per million tokens, which is the unit pi expects; it
+  // divides by 1000000 when costing usage.
+  assert.deepEqual(result.models[0].cost, {
+    input: 0.15,
+    output: 0.6,
+    cacheRead: 0.003,
+    cacheWrite: 0.1,
+  });
+});
+
+test("carries context pricing tiers through to pi", () => {
+  const result = buildProviderModels(
+    [{ id: "gpt-5.6-sol", object: "model", owned_by: "openai" }],
+    {
+      "openai/gpt-5.6-sol": {
+        id: "openai/gpt-5.6-sol",
+        name: "GPT-5.6 Sol",
+        reasoning: true,
+        modalities: { input: ["text"], output: ["text"] },
+        limit: { context: 1050000, output: 128000 },
+        cost: {
+          input: 4,
+          output: 20,
+          cache_read: 0.4,
+          cache_write: 5,
+          tiers: [
+            {
+              input: 8,
+              output: 30,
+              cache_read: 0.8,
+              cache_write: 10,
+              tier: { type: "context", size: 272000 },
+            },
+          ],
+        },
+      },
+    },
+    {},
+  );
+
+  assert.deepEqual(result.models[0].cost.tiers, [
+    { inputTokensAbove: 272000, input: 8, output: 30, cacheRead: 0.8, cacheWrite: 10 },
+  ]);
 });

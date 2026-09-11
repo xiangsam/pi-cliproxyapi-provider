@@ -36,6 +36,12 @@ export interface ModelsDevMetadata {
   sourceProvider?: string;
   name?: string;
   reasoning?: boolean;
+  /**
+   * How the model exposes reasoning control. Only `type: "effort"` entries carry
+   * a level list that maps onto pi thinking levels; `toggle` and `budget_tokens`
+   * describe other shapes and are not converted.
+   */
+  reasoning_options?: ModelsDevReasoningOption[];
   modalities?: {
     input?: string[];
     output?: string[];
@@ -63,6 +69,22 @@ export interface ModelsDevMetadata {
 }
 
 export type ModelsDevCatalog = Record<string, ModelsDevMetadata>;
+
+/**
+ * One entry of a models.dev `reasoning_options` array.
+ *
+ * `type` is kept as a plain string because models.dev adds shapes over time
+ * (currently `effort`, `toggle`, and `budget_tokens`) and unknown ones must be
+ * ignored rather than rejected.
+ */
+export interface ModelsDevReasoningOption {
+  type: string;
+  /** Levels for `type: "effort"`, drawn from the same vocabulary pi uses. */
+  values?: string[];
+  /** Token bounds for `type: "budget_tokens"`. */
+  min?: number;
+  max?: number;
+}
 
 export interface ProviderModelConfigLike {
   id: string;

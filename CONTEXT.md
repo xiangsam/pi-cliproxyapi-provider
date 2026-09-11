@@ -21,8 +21,12 @@ A model ID returned by the model discovery endpoint. The package registers every
 _Avoid_: Supported model, known model
 
 **model metadata**:
-Capability, limit, modality, and cost facts about a model. The package gets model metadata from models.dev and explicit config, not from CLIProxyAPI discovery.
+Capability, limit, modality, thinking level, and cost facts about a model. The package gets model metadata from models.dev and explicit config, not from CLIProxyAPI discovery.
 _Avoid_: Model config, model data
+
+**thinking level map**:
+The pi model field that decides which thinking levels Pi offers and what value each one sends upstream. A level maps to a string to be offered, or to `null` to be hidden. The package derives it from the models.dev effort list, so a level the model does not publish is hidden rather than sent and rejected.
+_Avoid_: Reasoning map, effort map, thinking modes
 
 **metadata alias**:
 A config entry that maps an available model ID to a models.dev canonical ID for metadata lookup only. It never changes the model ID sent to CLIProxyAPI.

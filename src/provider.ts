@@ -2,6 +2,7 @@ import type { CpaModel } from "./cpa.ts";
 import { findMetadataMatch, type MetadataMatchMethod } from "./matching.ts";
 import { getModelApiOverride, isGpt56Model, type ModelApiContext } from "./model-api.ts";
 import { getModelCapabilityOverrides } from "./model-capabilities.ts";
+import { thinkingLevelMapFromReasoningOptions } from "./reasoning-levels.ts";
 import type { Gpt56ContextWindowMode } from "./settings.ts";
 import type {
   InputModality,
@@ -83,14 +84,22 @@ function modelFromMetadata(
   const capabilityOverrides = getModelCapabilityOverrides(capabilityContext);
   const api = getModelApiOverride(capabilityContext);
 
+  // Precedence: models.dev wins when it publishes a level list, because that
+  // list tracks the model's current capability while the rules were written
+  // against an older catalog. Measured against a live CLIProxyAPI instance, the
+  // gpt-5.6 rule is now stale: it maps `minimal`, which the proxy rejects with
+  // `400 level "minimal" not supported`, whereas the models.dev list for the
+  // same model omits `minimal` and matches the proxy exactly. The rules still
+  // fill the gap when metadata is absent or carries no effort list.
+  const thinkingLevelMap =
+    thinkingLevelMapFromReasoningOptions(metadata.reasoning_options) ?? capabilityOverrides.thinkingLevelMap;
+
   return {
     id: cpaModel.id,
     name: metadata.name ?? cpaModel.id,
     reasoning: capabilityOverrides.reasoning ?? metadata.reasoning ?? PI_MODEL_DEFAULTS.reasoning,
     ...(api ? { api } : {}),
-    ...(capabilityOverrides.thinkingLevelMap
-      ? { thinkingLevelMap: capabilityOverrides.thinkingLevelMap }
-      : {}),
+    ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
     input: inputFromMetadata(metadata),
     cost: costFromMetadata(metadata),
     contextWindow: contextWindowForModel(capabilityContext, metadata.limit?.context, gpt56ContextWindow),

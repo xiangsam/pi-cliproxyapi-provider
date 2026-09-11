@@ -41,5 +41,9 @@ test("release workflow reacts to package version changes and creates all release
   assert.match(workflow, /npm publish --access public --provenance/);
   assert.match(workflow, /gh release create "\$TAG"/);
   assert.match(workflow, /--generate-notes/);
-  assert.match(workflow, /npmjs\.com\/package\/pi-cliproxyapi-provider\/v\/\$\{VERSION\}/);
+  // The package name is resolved from package.json so a rename cannot leave
+  // stale references in the release notes.
+  assert.match(workflow, /PACKAGE="\$\(node -p "require\('\.\/package\.json'\)\.name"\)"/);
+  assert.match(workflow, /npmjs\.com\/package\/\$\{PACKAGE\}\/v\/\$\{VERSION\}/);
+  assert.doesNotMatch(workflow, /npmjs\.com\/package\/pi-cliproxyapi-provider/);
 });

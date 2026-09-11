@@ -13,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pi-cliproxyapi-provider-release
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -77,9 +77,10 @@ jobs:
         env:
           VERSION: ${{ needs.detect.outputs.version }}
         run: |
-          if npm view "pi-cliproxyapi-provider@${VERSION}" version >/dev/null 2>&1; then
+          PACKAGE="$(node -p "require('./package.json').name")"
+          if npm view "${PACKAGE}@${VERSION}" version >/dev/null 2>&1; then
             echo "published=true" >> "$GITHUB_OUTPUT"
-            echo "pi-cliproxyapi-provider@${VERSION} is already published; npm publish will be skipped."
+            echo "${PACKAGE}@${VERSION} is already published; npm publish will be skipped."
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
@@ -125,6 +126,7 @@ jobs:
           TAG: ${{ needs.detect.outputs.tag }}
           VERSION: ${{ needs.detect.outputs.version }}
         run: |
+          PACKAGE="$(node -p "require('./package.json').name")"
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "GitHub release $TAG already exists."
           else
@@ -132,7 +134,7 @@ jobs:
               --verify-tag \
               --title "$TAG" \
               --generate-notes \
-              --notes "Published package: [pi-cliproxyapi-provider@${VERSION}](https://www.npmjs.com/package/pi-cliproxyapi-provider/v/${VERSION})"
+              --notes "Published package: [${PACKAGE}@${VERSION}](https://www.npmjs.com/package/${PACKAGE}/v/${VERSION})"
           fi
 
       - name: Release summary
@@ -140,4 +142,5 @@ jobs:
           TAG: ${{ needs.detect.outputs.tag }}
           VERSION: ${{ needs.detect.outputs.version }}
         run: |
-          echo "Released [$TAG](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) and [pi-cliproxyapi-provider@${VERSION}](https://www.npmjs.com/package/pi-cliproxyapi-provider/v/${VERSION})." >> "$GITHUB_STEP_SUMMARY"
+          PACKAGE="$(node -p "require('./package.json').name")"
+          echo "Released [$TAG](https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}) and [${PACKAGE}@${VERSION}](https://www.npmjs.com/package/${PACKAGE}/v/${VERSION})." >> "$GITHUB_STEP_SUMMARY"

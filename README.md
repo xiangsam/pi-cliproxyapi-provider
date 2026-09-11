@@ -1,25 +1,32 @@
-# pi-cliproxyapi-provider
+# @samrito/pi-cliproxyapi-provider
 
-`pi-cliproxyapi-provider` registers one [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) instance as a pi model provider. It discovers models from CLIProxyAPI's OpenAI-compatible `/v1/models` endpoint and enriches them with provider-specific metadata from [models.dev](https://models.dev/). Mixed catalogs use OpenAI Completions by default, while GPT-5.6 family models (including Codex variants) use the Responses API so pi can read their usage data. Canonical `/v1/models` owners such as `openai` select the matching provider metadata; aliases can override that selection when a proxy routes billing differently.
+> A fork of [pi-cliproxyapi-provider](https://github.com/0xRichardH/pi-cliproxyapi-provider)
+> by Richard Hao (MIT). This fork adds model thinking levels sourced from
+> models.dev. It is a drop-in replacement: the settings namespace, config paths,
+> cache directory, and `/cliproxyapi` command are unchanged, so existing
+> configuration keeps working. Do not install it alongside the original — both
+> register the same provider and command, and pi rejects the duplicate.
+
+`@samrito/pi-cliproxyapi-provider` registers one [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) instance as a pi model provider. It discovers models from CLIProxyAPI's OpenAI-compatible `/v1/models` endpoint and enriches them with provider-specific metadata from [models.dev](https://models.dev/). Mixed catalogs use OpenAI Completions by default, while GPT-5.6 family models (including Codex variants) use the Responses API so pi can read their usage data. Canonical `/v1/models` owners such as `openai` select the matching provider metadata; aliases can override that selection when a proxy routes billing differently.
 
 ## Install
 
 Install from npm:
 
 ```bash
-pi install npm:pi-cliproxyapi-provider
+pi install npm:@samrito/pi-cliproxyapi-provider
 ```
 
 Or install from GitHub:
 
 ```bash
-pi install git:github.com/0xRichardH/pi-cliproxyapi-provider@master
+pi install git:github.com/xiangsam/pi-cliproxyapi-provider@master
 ```
 
 You can omit `@master`, but pinning a branch, tag, or commit makes Git installs reproducible:
 
 ```bash
-pi install git:github.com/0xRichardH/pi-cliproxyapi-provider@a28f326
+pi install git:github.com/xiangsam/pi-cliproxyapi-provider@a28f326
 ```
 
 Restart pi after installing, then run:
@@ -95,6 +102,72 @@ The same setting can be placed in project `.pi/settings.json`; project settings 
 - `"full"`: advertise the models.dev context limit, allowing Pi to retain substantially more history before compaction.
 
 Use `"full"` only when the selected CLIProxyAPI route and upstream account actually support that limit. Requests above `272000` input tokens also use the higher models.dev context-pricing tier where one is defined.
+
+### Thinking levels
+
+The provider derives each model's selectable thinking levels from the
+`reasoning_options` field in models.dev metadata. When a model publishes an
+effort list, exactly those levels appear in Pi's thinking selector:
+
+```text
+deepseek-flash   reasoning_options: [{"type":"effort","values":["low","high","max"]}]
+                 -> Pi offers off, low, high, max
+```
+
+Two details make this more than cosmetic:
+
+- **Absent levels are hidden, not defaulted.** models.dev publishes an
+exhaustive list, so every level it omits is explicitly marked unsupported. This
+matters because Pi otherwise offers levels up to `high` using the provider
+default, and a proxy that validates the level rejects the request. CLIProxyAPI
+does exactly that: an unsupported level comes back as
+`400 level "medium" not supported, valid levels: low, high, max`.
+- **`xhigh` and `max` only appear when the list names them.** Pi hides extended
+levels unless a model maps them explicitly, which is why `max` was previously
+unreachable for models that support it.
+
+Only `type: "effort"` publishes levels. `toggle` and `budget_tokens` describe
+other reasoning shapes and are ignored, so those models keep Pi's default. A
+built-in rule for the GPT-5.6 family remains as a fallback for models whose
+metadata carries no effort list; where models.dev publishes one, it wins, because
+it tracks the model's current capability and the rule does not.
+
+> **Levels describe the model, not your proxy.** models.dev publishes the
+> canonical capability, and a CLIProxyAPI route can accept a different set. A
+> mismatch that offers a level the proxy rejects makes Pi send a request that
+> fails with `400`. Correct it with the override below.
+
+#### Correcting a level list
+
+When a proxy serves a model differently from its published metadata, or when
+the models.dev match lands on a different provider, override the map in Pi's own
+`~/.pi/agent/models.json`:
+
+```json
+{
+  "providers": {
+    "cpa": {
+      "modelOverrides": {
+        "deepseek-flash": {
+          "thinkingLevelMap": {
+            "off": "none",
+            "minimal": null,
+            "low": "low",
+            "medium": null,
+            "high": "high",
+            "xhigh": null,
+            "max": "max"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This layer is applied by Pi after the provider registers its models, so it wins
+over both models.dev and the built-in rules. Use `null` to hide a level the
+proxy rejects. Replace `cpa` with your configured provider name.
 
 ### Model and display configuration
 

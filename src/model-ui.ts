@@ -75,13 +75,33 @@ function detailItems(model: ProviderModelConfigLike, override: ProviderModelOver
   ];
 }
 
+/**
+ * Render the thinking levels pi will actually offer.
+ *
+ * Listing `Object.keys(thinkingLevelMap)` would be misleading: a key is present
+ * with value `null` precisely to mean "unsupported, hidden", so the keys alone
+ * include levels the user can never select. Show the mapped values instead and
+ * state the count of explicitly unsupported levels.
+ */
+function thinkingLevelSummary(map: ProviderModelConfigLike["thinkingLevelMap"]): string {
+  if (!map) return "none";
+
+  const offered = Object.entries(map)
+    .filter(([, value]) => typeof value === "string")
+    .map(([level]) => level);
+  const hidden = Object.values(map).filter((value) => value === null).length;
+  if (offered.length === 0) return "none";
+
+  return hidden > 0 ? `${offered.join(", ")} (${hidden} unsupported)` : offered.join(", ");
+}
+
 function details(model: ProviderModelConfigLike): string[] {
   return [
     `Name: ${model.name}`,
     `API: ${model.api ?? "openai-completions (provider default)"}`,
     `Input: ${model.input.join(", ")}`,
     `Cost: in ${model.cost.input}, out ${model.cost.output}, cache read ${model.cost.cacheRead}, cache write ${model.cost.cacheWrite}`,
-    `Thinking map: ${model.thinkingLevelMap ? Object.keys(model.thinkingLevelMap).join(", ") : "none"}`,
+    `Thinking map: ${thinkingLevelSummary(model.thinkingLevelMap)}`,
     `Other compat: ${formattedOtherCompat(model)}`,
   ];
 }
