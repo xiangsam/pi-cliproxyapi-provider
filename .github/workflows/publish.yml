@@ -10,6 +10,8 @@ on:
 
 permissions:
   contents: write
+  # Required for trusted publishing: npm exchanges this OIDC token for a
+  # short-lived, publish-scoped credential.
   id-token: write
 
 concurrency:
@@ -27,7 +29,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -60,12 +62,12 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -115,9 +117,12 @@ jobs:
 
       - name: Publish package to npm
         if: steps.npm.outputs.published != 'true'
+        # Trusted publishing (OIDC): no NPM_TOKEN secret is stored. GitHub mints a
+        # short-lived credential for this job via `id-token: write`, and npm
+        # attaches a provenance attestation linking the tarball to this repo and
+        # commit. Requires a trusted publisher configured on npmjs.com for this
+        # package, naming this repository and this workflow filename.
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
         shell: bash
