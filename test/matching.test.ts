@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { findMetadataMatch, normalizeModelName } from "../src/matching.ts";
+import { findMetadataMatch, inferMetadataMatch, normalizeModelName, resolveMetadataMatch } from "../src/matching.ts";
 
 const catalog = {
   "openai/gpt-5.5": { id: "openai/gpt-5.5", name: "GPT-5.5" },
@@ -141,4 +141,62 @@ test("allows an explicit alias to override a canonical owner match", () => {
 
   assert.equal(match?.metadataId, "other/gpt-5.5");
   assert.equal(match?.method, "alias");
+});
+
+test("strips proxy variant suffixes and infers the vendor when the primary matcher fails", () => {
+  const inferred = {
+    "google/gemini-3.6-flash": { id: "google/gemini-3.6-flash", name: "Gemini 3.6 Flash" },
+    "anthropic/claude-opus-5-5": { id: "anthropic/claude-opus-5-5", name: "Claude Opus 5.5" },
+  };
+
+  const gemini = resolveMetadataMatch({ id: "gemini-3.6-flash-high", owned_by: "antigravity" }, inferred, {}, null);
+  assert.equal(gemini?.metadataId, "google/gemini-3.6-flash");
+  assert.equal(gemini?.method, "vendor-prefix");
+
+  const claude = resolveMetadataMatch({ id: "claude-opus-5-5-high", owned_by: "antigravity" }, inferred, {}, null);
+  assert.equal(claude?.metadataId, "anthropic/claude-opus-5-5");
+  assert.equal(claude?.method, "vendor-prefix");
+});
+
+test("prefers the first-party provider when only reseller keys carry the model", () => {
+  const inferred = {
+    "reseller/deepseek/deepseek-flash": { id: "deepseek/deepseek-flash", sourceProvider: "deepseek", reasoning: true },
+    "other/deepseek-flash": { id: "other/deepseek-flash", sourceProvider: "other", reasoning: false },
+  };
+
+  const match = inferMetadataMatch({ id: "deepseek-flash", owned_by: "openai" }, inferred, null);
+  assert.equal(match?.metadataId, "reseller/deepseek/deepseek-flash");
+  assert.equal(match?.method, "vendor-first-party");
+});
+
+test("finds models.dev preview entries when the proxy drops the suffix", () => {
+  const inferred = {
+    "google/gemini-3-flash-preview": { id: "google/gemini-3-flash-preview", name: "Gemini 3 Flash Preview" },
+  };
+
+  const match = resolveMetadataMatch({ id: "gemini-3-flash", owned_by: "antigravity" }, inferred, {}, null);
+  assert.equal(match?.metadataId, "google/gemini-3-flash-preview");
+  assert.equal(match?.method, "vendor-prefix");
+});
+
+test("matches a reseller id path when the owner names the upstream vendor", () => {
+  const inferred = {
+    "poe/xai/grok-3-mini": { id: "xai/grok-3-mini", sourceProvider: "poe", reasoning: true },
+    "helicone/grok-3-mini": { id: "helicone/grok-3-mini", sourceProvider: "helicone", reasoning: false },
+  };
+
+  const match = inferMetadataMatch({ id: "grok-3-mini", owned_by: "xai" }, inferred, null);
+  assert.equal(match?.metadataId, "poe/xai/grok-3-mini");
+  assert.equal(match?.method, "vendor-hint");
+});
+
+test("keeps the primary matcher's match when it already resolves the model", () => {
+  const catalog = {
+    "anthropic/claude-sonnet-4-6": { id: "anthropic/claude-sonnet-4-6", sourceProvider: "anthropic" },
+    "openrouter/anthropic/claude-sonnet-4-6": { id: "anthropic/claude-sonnet-4-6", sourceProvider: "openrouter" },
+  };
+
+  const match = resolveMetadataMatch({ id: "claude-sonnet-4-6", owned_by: "antigravity" }, catalog, {}, "openrouter");
+  assert.equal(match?.metadataId, "openrouter/anthropic/claude-sonnet-4-6");
+  assert.equal(match?.method, "provider-fallback");
 });

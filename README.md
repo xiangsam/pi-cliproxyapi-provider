@@ -224,6 +224,19 @@ Aliases affect metadata only. The package still sends the original CLIProxyAPI m
 
 When `/v1/models` reports a canonical owner such as `openai`, the package uses that provider's metadata even if models.dev lists the model under several providers. Noncanonical owners can embed a provider hint, so `feedmob-opencode-go` resolves to `opencode-go` when that provider publishes the model. If ownership is still unresolved, the package uses OpenRouter metadata by default when there is exactly one matching OpenRouter entry. Set `metadataFallbackProvider` to another models.dev provider ID, or to `null`/`"none"` to disable this fallback. Legacy metadata caches without source-provider identity are ignored in favor of the bundled provider-qualified catalog until metadata is refreshed. Add an alias when CLIProxyAPI's reported owner or fallback does not match the provider whose limits and pricing apply to your setup.
 
+When none of the above resolves a model, the package falls back to vendor
+inference: it strips proxy variant suffixes such as `-high`, `-low`, `-medium`,
+`-fast`, `-build`, and `-preview`, and infers the upstream vendor from the model
+name (`claude-*` → `anthropic`, `gemini-*` → `google`, `deepseek-*` →
+`deepseek`, `grok-*` → `xai`, and so on). This rescues proxy-renamed models
+whose `owned_by` is missing, generic, or misleading — for example
+`deepseek-flash` reported with owner `openai` resolves to
+`deepseek/deepseek-flash`, and `gemini-3.6-flash-high` resolves to
+`google/gemini-3.6-flash`. Models the primary matcher already resolves keep
+their existing match source; inference runs only after the primary matcher
+fails. Add a metadata alias to override an inferred match that does not match
+your billing route.
+
 Add global aliases to:
 
 ```text

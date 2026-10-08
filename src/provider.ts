@@ -1,5 +1,5 @@
 import type { CpaModel } from "./cpa.ts";
-import { findMetadataMatch, type MetadataMatchMethod } from "./matching.ts";
+import { resolveMetadataMatch, type MetadataMatchMethod } from "./matching.ts";
 import { getModelApiOverride, isGpt56Model, type ModelApiContext } from "./model-api.ts";
 import { getModelCapabilityOverrides } from "./model-capabilities.ts";
 import { thinkingLevelMapFromReasoningOptions } from "./reasoning-levels.ts";
@@ -139,6 +139,9 @@ function emptyMatchMethods(): Record<MetadataMatchMethod, number> {
     suffix: 0,
     "normalized-suffix": 0,
     "provider-fallback": 0,
+    "vendor-prefix": 0,
+    "vendor-first-party": 0,
+    "vendor-hint": 0,
   };
 }
 
@@ -173,7 +176,7 @@ export function buildProviderModels(
   let enriched = 0;
 
   const models = cpaModels.map((cpaModel) => {
-    const match = findMetadataMatch(cpaModel, catalog, aliases, metadataFallbackProvider);
+    const match = resolveMetadataMatch(cpaModel, catalog, aliases, metadataFallbackProvider);
     if (!match) {
       unmatchedModelIds.push(cpaModel.id);
       return applyModelOverride(defaultModel(cpaModel, gpt56ContextWindow), overrides);
