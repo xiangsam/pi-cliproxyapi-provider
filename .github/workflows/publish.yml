@@ -69,8 +69,14 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
+          # Node 24 bundles npm 11.x, which supports the OIDC trusted-publishing
+          # registry auth exchange (npm >= 11.5.1). Node 22 bundles npm 10.x,
+          # which signs provenance but cannot authenticate the publish, so the
+          # registry answers the unauthenticated PUT with a misleading E404.
+          node-version: 24
+          # No registry-url here: setup-node would write a placeholder
+          # `_authToken` into the user .npmrc, and npm prefers that placeholder
+          # over the OIDC exchange, failing the publish with E404 as well.
           cache: npm
 
       - name: Verify package version is unpublished
