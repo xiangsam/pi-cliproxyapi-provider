@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: write
 
 jobs:
@@ -41,10 +40,6 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Bump patch version
-        if: steps.changes.outputs.changed == 'true'
-        run: npm version patch --no-git-tag-version
-
       - name: Run checks
         if: steps.changes.outputs.changed == 'true'
         run: npm run check
@@ -55,32 +50,19 @@ jobs:
 
       - name: Commit and push update
         if: steps.changes.outputs.changed == 'true'
-        id: release
         shell: bash
         run: |
-          version="$(node --input-type=module -e "import pkg from './package.json' with { type: 'json' }; process.stdout.write(pkg.version)")"
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/models-dev-fallback.json package.json package-lock.json
-          git commit -m "chore: update models.dev fallback (v${version})"
+          git add data/models-dev-fallback.json
+          git commit -m "chore: update models.dev fallback"
           git push origin HEAD:${GITHUB_REF_NAME}
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      # Pushes made with GITHUB_TOKEN do not start push workflows, so dispatch
-      # the release workflow explicitly after the automated version bump.
-      - name: Start release workflow
-        if: steps.changes.outputs.changed == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run publish.yml --ref "${GITHUB_REF_NAME}"
 
       - name: Summary
         shell: bash
         run: |
           if [[ "${{ steps.changes.outputs.changed }}" == "true" ]]; then
-            echo "Updated the fallback catalog and requested release v${{ steps.release.outputs.version }}." >> "$GITHUB_STEP_SUMMARY"
+            echo "Updated the fallback catalog for the next planned release; no package version was created." >> "$GITHUB_STEP_SUMMARY"
           else
             echo "models.dev fallback is already current." >> "$GITHUB_STEP_SUMMARY"
           fi

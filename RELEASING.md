@@ -2,9 +2,9 @@
 
 GitHub Actions publishes this package when the version in `package.json` changes on `master`. The release workflow validates the package, creates a matching `vX.Y.Z` tag, publishes to npm with provenance, and creates a GitHub Release with generated notes and a link to the npm package.
 
-The daily models.dev workflow uses the same release path: when the bundled fallback catalog changes, it bumps the patch version, commits the update, and dispatches the release workflow.
+The daily models.dev workflow only updates the bundled fallback catalog. Catalog changes ship with the next planned release and do not trigger their own releases.
 
-In both cases, the published version must be unique on npm.
+Each published version must be unique on npm.
 
 ## Prerequisites
 
@@ -42,16 +42,11 @@ Merge or push a commit to `master` that changes the version in `package.json` an
 
 You can also rerun a failed or incomplete release from **Actions → Release → Run workflow**. The workflow safely skips an npm version, tag, or GitHub Release that already exists, while verifying that an existing tag points to the release commit.
 
-## Automatic catalog releases
+## Automatic catalog synchronization
 
-Every day at 03:17 UTC, GitHub Actions downloads and validates the latest models.dev catalog. When the bundled fallback changes, the workflow:
+Every day at 03:17 UTC, GitHub Actions downloads and validates the latest models.dev catalog. When the bundled fallback changes, the workflow runs the full checks, verifies package contents, and commits and pushes only the catalog.
 
-1. Bumps the patch version in `package.json` and `package-lock.json`.
-2. Runs the full checks.
-3. Commits and pushes the catalog and version change.
-4. Dispatches the normal release workflow.
-
-No new version is created when the catalog is unchanged. The update workflow requires `contents: write` and `actions: write`; the release workflow requires `contents: write`, `id-token: write`, and the `NPM_TOKEN` repository secret.
+The workflow does not change package versions or dispatch the release workflow. It requires only `contents: write`. The updated fallback ships with the next planned release. Existing users can run `/cliproxyapi refresh metadata` to fetch current metadata without upgrading the package.
 
 ## Publish a later release
 

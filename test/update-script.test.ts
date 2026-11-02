@@ -22,13 +22,14 @@ test("models.dev updater rejects catastrophic catalog shrinkage", () => {
   assert.throws(() => validateCatalogSize(filler(200), filler(50)), /shrank from 200 to 50/);
 });
 
-test("daily workflow bumps the version and dispatches the release workflow", async () => {
+test("daily workflow syncs the catalog without creating a release", async () => {
   const workflow = await readFile(".github/workflows/update-models-dev.yml", "utf8");
 
   assert.match(workflow, /cron: "17 3 \* \* \*"/);
-  assert.match(workflow, /actions: write/);
-  assert.match(workflow, /npm version patch --no-git-tag-version/);
-  assert.match(workflow, /gh workflow run publish\.yml/);
+  assert.doesNotMatch(workflow, /actions: write/);
+  assert.doesNotMatch(workflow, /npm version/);
+  assert.match(workflow, /git add data\/models-dev-fallback\.json\n/);
+  assert.doesNotMatch(workflow, /gh workflow run/);
   assert.doesNotMatch(workflow, /npm publish/);
 });
 
